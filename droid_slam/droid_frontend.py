@@ -4,14 +4,15 @@ import numpy as np
 
 from lietorch import SE3
 from factor_graph import FactorGraph
+from cdsmvsnet import CDSMVSNet
 
 
 class DroidFrontend:
-    def __init__(self, net, video, args):
+    def __init__(self, net, video, mvsnet, args):
         self.video = video
         self.update_op = net.update
         self.graph = FactorGraph(video, net.update, max_factors=48)
-        self.mvsnet = CDS
+        self.mvsnet = mvsnet
 
         # local optimization window
         self.t0 = 0
@@ -66,6 +67,17 @@ class DroidFrontend:
             for itr in range(self.iters2):
                 self.graph.update(None, None, use_inactive=True)
 
+        # refine depths
+        if self.mvsnet is not None:
+            ref_id, src_ids = self.t1 - 3, [self.t1-5, self.t1-4, self.t1-2, self.t1-1]
+            img_ids = [ref_id] + src_ids
+            intrinsics = self.video.intrinsics[img_ids]
+            poses = SE3(self.video.poses[img_ids])
+            ref_disp = self.video.disp[ref_id]
+            val_depths = ref_disp[(ref_disp > 0.001) & (ref_disp < 1000)]
+            min_d, max_d = val_depths.min(), val_depths.max()
+            d_interval = (max_d - min_d) / 192
+            depth_values = torch.arange(min_d, max_d, d_interval).unsqueeze(0)
         # set pose for next itration
         self.video.poses[self.t1] = self.video.poses[self.t1-1]
         self.video.disps[self.t1] = self.video.disps[self.t1-1].mean()

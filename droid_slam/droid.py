@@ -8,6 +8,7 @@ from motion_filter import MotionFilter
 from droid_frontend import DroidFrontend
 from droid_backend import DroidBackend
 from trajectory_filler import PoseTrajectoryFiller
+from cdsmvsnet import CDSMVSNet
 
 from collections import OrderedDict
 from torch.multiprocessing import Process
@@ -20,6 +21,15 @@ class Droid:
         self.args = args
         self.disable_vis = args.disable_vis
 
+        # dense depth prediction
+        self.mvsnet = CDSMVSNet(refine=True, ndepths=(64, 32, 8), depth_interals_ratio=(4, 2, 1))
+        mvsnet_ckpt = torch.load(args.mvsnet_ckpt)
+        state_dict = OrderedDict([
+            (k.replace("module.", ""), v) for (k, v) in torch.load(mvsnet_ckpt["state_dict"]).items()
+        ])
+        self.mvsnet.load_state_dict(state_dict)
+        self.mvsnet.to("cuda:0").eval()
+
         # store images, depth, poses, intrinsics (shared between processes)
         self.video = DepthVideo(args.image_size, args.buffer, stereo=args.stereo)
 
@@ -27,7 +37,7 @@ class Droid:
         self.filterx = MotionFilter(self.net, self.video, thresh=args.filter_thresh)
 
         # frontend process
-        self.frontend = DroidFrontend(self.net, self.video, self.args)
+        self.frontend = DroidFrontend(self.net, self.video, self.mvsnet, self.args)
         
         # backend process
         self.backend = DroidBackend(self.net, self.video, self.args)
