@@ -11,6 +11,7 @@ class DroidFrontend:
         self.video = video
         self.update_op = net.update
         self.graph = FactorGraph(video, net.update, max_factors=48)
+        self.mvsnet = CDS
 
         # local optimization window
         self.t0 = 0
