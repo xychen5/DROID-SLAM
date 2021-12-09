@@ -22,10 +22,10 @@ class Droid:
         self.disable_vis = args.disable_vis
 
         # dense depth prediction
-        self.mvsnet = CDSMVSNet(refine=True, ndepths=(64, 32, 8), depth_interals_ratio=(4, 2, 1))
+        self.mvsnet = CDSMVSNet(refine=True, ndepths=(96, 32, 8), depth_interals_ratio=(4, 2, 1))
         mvsnet_ckpt = torch.load(args.mvsnet_ckpt)
         state_dict = OrderedDict([
-            (k.replace("module.", ""), v) for (k, v) in torch.load(mvsnet_ckpt["state_dict"]).items()
+            (k.replace("module.", ""), v) for (k, v) in mvsnet_ckpt["state_dict"].items()
         ])
         self.mvsnet.load_state_dict(state_dict)
         self.mvsnet.to("cuda:0").eval()

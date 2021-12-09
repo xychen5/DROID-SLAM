@@ -1,6 +1,7 @@
 import torch
 import lietorch
 import numpy as np
+import torch.nn.functional as F
 
 from lietorch import SE3
 from factor_graph import FactorGraph
@@ -71,26 +72,43 @@ class DroidFrontend:
         if self.mvsnet is not None:
             ref_id, src_ids = self.t1 - 3, [self.t1-5, self.t1-4, self.t1-2, self.t1-1]
             img_ids = [ref_id] + src_ids
-            intrinsics = self.video.intrinsics[img_ids]
+            intrinsics = self.video.intrinsics[img_ids] * 8
             poses = SE3(self.video.poses[img_ids]).matrix()
-            proj_matrices = torch.zeros_like(poses)
-            proj_matrices[:, 0, 0], proj_matrices[:, 1, 1], proj_matrices[:, :2, 2] = intrinsics[:, 0], intrinsics[:, 1], intrinsics[:, 2:]
-            proj_matrices = torch.stack((poses, proj_matrices), dim=1)
 
-            ref_depth = 1 / self.video.disp[ref_id]
+            intr_matrices = torch.zeros_like(poses)
+            intr_matrices[:, 0, 0], intr_matrices[:, 1, 1] = intrinsics[:, 0], intrinsics[:, 1],
+            intr_matrices[:, :2, 2], intr_matrices[:, 2, 2] = intrinsics[:, 2:], 1.0
+            proj_stage3 = torch.stack((poses, intr_matrices), dim=1)
+            proj_stage2 = proj_stage3.clone()
+            proj_stage2[:, 1, :2] *= 0.5
+            proj_stage1 = proj_stage2.clone()
+            proj_stage1[:, 1, :2] *= 0.5
+            proj_stage0 = proj_stage1.clone()
+            proj_stage0[:, 1, :2] *= 0.5
+            proj_matrices = {"stage1": proj_stage0.unsqueeze(0),
+                             "stage2": proj_stage1.unsqueeze(0),
+                             "stage3": proj_stage2.unsqueeze(0),
+                             "stage4": proj_stage3.unsqueeze(0)}
+
+            ref_depth = 1 / self.video.disps[ref_id]
             val_depths = ref_depth[(ref_depth > 0.001) & (ref_depth < 1000)]
             min_d, max_d = val_depths.min(), val_depths.max()
-            d_interval = (max_d - min_d) / 192
-            depth_values = torch.arange(min_d, max_d, d_interval).unsqueeze(0)
+            d_interval = 0.05 #(max_d - min_d) / 256
+            depth_values = torch.arange(0, 384, dtype=torch.float32, device=min_d.device).unsqueeze(0) * d_interval + min_d
 
-            images = self.video.images[img_ids]
+            images = self.video.images[img_ids].unsqueeze(0) / 255.
+            with torch.no_grad():
+                final_depth = self.mvsnet(images, proj_matrices, depth_values.cuda(), temperature=0.01)["refined_depth"]
+            disp_up = 1 / (final_depth.squeeze(0) + 1e-6)
+            self.video.disps_up[ref_id] = disp_up.clamp(min=0.001)
 
         # set pose for next itration
         self.video.poses[self.t1] = self.video.poses[self.t1-1]
         self.video.disps[self.t1] = self.video.disps[self.t1-1].mean()
 
         # update visualization
-        self.video.dirty[self.graph.ii.min():self.t1] = True
+        # self.video.dirty[self.graph.ii.min():self.t1] = True
+        self.video.dirty[self.graph.ii.min():(self.t1 - 2)] = True
 
     def __initialize(self):
         """ initialize the SLAM system """
@@ -127,7 +145,6 @@ class DroidFrontend:
 
     def __call__(self):
         """ main update """
-
         # do initialization
         if not self.is_initialized and self.video.counter.value == self.warmup:
             self.__initialize()

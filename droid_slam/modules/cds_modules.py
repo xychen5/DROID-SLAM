@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dynamic_conv import DynamicConv
+from droid_slam.modules.dynamic_conv import DynamicConv
 
 
 def init_bn(module):

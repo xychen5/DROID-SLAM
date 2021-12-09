@@ -87,21 +87,21 @@ def droid_visualization(video, device="cuda:0"):
                 return
 
             video.dirty[dirty_index] = False
-
             # convert poses to 4x4 matrix
-            poses = torch.index_select(video.poses, 0, dirty_index)
-            disps = torch.index_select(video.disps, 0, dirty_index)
+            poses = torch.index_select(video.poses, 0, dirty_index).clone()
+            # disps = torch.index_select(video.disps, 0, dirty_index)
+            disps = torch.index_select(video.disps_up, 0, dirty_index).clone()
             Ps = SE3(poses).inv().matrix().cpu().numpy()
 
-            images = torch.index_select(video.images, 0, dirty_index)
-            images = images.cpu()[:,[2,1,0],3::8,3::8].permute(0,2,3,1) / 255.0
-            points = droid_backends.iproj(SE3(poses).inv().data, disps, video.intrinsics[0]).cpu()
+            images = torch.index_select(video.images, 0, dirty_index).clone()
+            # images = images.cpu()[:,[2,1,0],3::8,3::8].permute(0,2,3,1) / 255.0
+            images = images.cpu()[:, [2, 1, 0]].permute(0, 2, 3, 1) / 255.0
+            points = droid_backends.iproj(SE3(poses).inv().data, disps, video.intrinsics[0]*8).cpu()
 
             thresh = droid_visualization.filter_thresh * torch.ones_like(disps.mean(dim=[1,2]))
             
             count = droid_backends.depth_filter(
-                video.poses, video.disps, video.intrinsics[0], dirty_index, thresh)
-
+                video.poses.clone(), video.disps_up.clone(), video.intrinsics[0]*8, dirty_index, thresh)
             count = count.cpu()
             disps = disps.cpu()
             masks = ((count >= 2) & (disps > .5*disps.mean(dim=[1,2], keepdim=True)))
@@ -125,8 +125,8 @@ def droid_visualization(video, device="cuda:0"):
                 droid_visualization.cameras[ix] = cam_actor
 
                 mask = masks[i].reshape(-1)
-                pts = points[i].reshape(-1, 3)[mask].cpu().numpy()
-                clr = images[i].reshape(-1, 3)[mask].cpu().numpy()
+                pts = points[i].reshape(-1, 3)[mask].numpy()
+                clr = images[i].reshape(-1, 3)[mask].numpy()
                 
                 ## add point actor ###
                 point_actor = create_point_actor(pts, clr)
