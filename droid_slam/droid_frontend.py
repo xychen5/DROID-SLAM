@@ -72,12 +72,19 @@ class DroidFrontend:
             ref_id, src_ids = self.t1 - 3, [self.t1-5, self.t1-4, self.t1-2, self.t1-1]
             img_ids = [ref_id] + src_ids
             intrinsics = self.video.intrinsics[img_ids]
-            poses = SE3(self.video.poses[img_ids])
-            ref_disp = self.video.disp[ref_id]
-            val_depths = ref_disp[(ref_disp > 0.001) & (ref_disp < 1000)]
+            poses = SE3(self.video.poses[img_ids]).matrix()
+            proj_matrices = torch.zeros_like(poses)
+            proj_matrices[:, 0, 0], proj_matrices[:, 1, 1], proj_matrices[:, :2, 2] = intrinsics[:, 0], intrinsics[:, 1], intrinsics[:, 2:]
+            proj_matrices = torch.stack((poses, proj_matrices), dim=1)
+
+            ref_depth = 1 / self.video.disp[ref_id]
+            val_depths = ref_depth[(ref_depth > 0.001) & (ref_depth < 1000)]
             min_d, max_d = val_depths.min(), val_depths.max()
             d_interval = (max_d - min_d) / 192
             depth_values = torch.arange(min_d, max_d, d_interval).unsqueeze(0)
+
+            images = self.video.images[img_ids]
+
         # set pose for next itration
         self.video.poses[self.t1] = self.video.poses[self.t1-1]
         self.video.disps[self.t1] = self.video.disps[self.t1-1].mean()
