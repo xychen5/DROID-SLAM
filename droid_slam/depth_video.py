@@ -10,23 +10,25 @@ from droid_net import cvx_upsample
 import geom.projective_ops as pops
 
 class DepthVideo:
-    def __init__(self, image_size=[480, 640], buffer=1024, stereo=False, device="cuda:0"):
+    def __init__(self, image_size=[480, 640], buffer=1024, stereo=False, depth_size=(480, 640), device="cuda:0"):
                 
         # current keyframe count
         self.counter = Value('i', 0)
         self.ready = Value('i', 0)
         self.ht = ht = image_size[0]
         self.wd = wd = image_size[1]
+        depth_h, depth_w = depth_size
 
         ### state attributes ###
         self.tstamp = torch.zeros(buffer, device="cuda", dtype=torch.float).share_memory_()
         self.images = torch.zeros(buffer, 3, ht, wd, device="cuda", dtype=torch.uint8)
+        self.ref_image = torch.zeros(1, 3, depth_h, depth_w, device="cuda", dtype=torch.float32).share_memory_()
         self.dirty = torch.zeros(buffer, device="cuda", dtype=torch.bool).share_memory_()
         self.red = torch.zeros(buffer, device="cuda", dtype=torch.bool).share_memory_()
         self.poses = torch.zeros(buffer, 7, device="cuda", dtype=torch.float).share_memory_()
         self.disps = torch.ones(buffer, ht//8, wd//8, device="cuda", dtype=torch.float).share_memory_()
         self.disps_sens = torch.zeros(buffer, ht//8, wd//8, device="cuda", dtype=torch.float).share_memory_()
-        self.disps_up = torch.zeros(buffer, ht, wd, device="cuda", dtype=torch.float).share_memory_()
+        self.disps_up = torch.zeros(buffer, depth_h, depth_w, device="cuda", dtype=torch.float).share_memory_()
         self.intrinsics = torch.zeros(buffer, 4, device="cuda", dtype=torch.float).share_memory_()
 
         self.stereo = stereo
@@ -133,7 +135,7 @@ class DepthVideo:
             s = self.disps[:self.counter.value].mean()
             self.disps[:self.counter.value] /= s
             self.poses[:self.counter.value,:3] *= s
-            self.dirty[:self.counter.value] = True
+            # self.dirty[:self.counter.value] = True
 
 
     def reproject(self, ii, jj):

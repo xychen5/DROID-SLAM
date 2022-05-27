@@ -35,6 +35,7 @@ def image_stream(imagedir, calib, stride):
     K[1,2] = cy
 
     image_list = sorted(os.listdir(imagedir))[::stride]
+    # image_list = ['image%s.jpg' % i for i in range(0, 2548)]
 
     for t, imfile in enumerate(image_list):
         image = cv2.imread(os.path.join(imagedir, imfile))
@@ -42,11 +43,11 @@ def image_stream(imagedir, calib, stride):
             image = cv2.undistort(image, K, calib[4:])
 
         h0, w0, _ = image.shape
-        h1 = int(h0 * np.sqrt((384 * 512) / (h0 * w0)))
-        w1 = int(w0 * np.sqrt((384 * 512) / (h0 * w0)))
+        h1 = 256 #int(h0 * np.sqrt((256 * 448) / (h0 * w0)))
+        w1 = 448 #int(w0 * np.sqrt((256 * 448) / (h0 * w0)))
 
         image = cv2.resize(image, (w1, h1))
-        image = image[:h1-h1%8, :w1-w1%8]
+        # image = image[:h1-h1%8, :w1-w1%8]
         image = torch.as_tensor(image).permute(2, 0, 1)
 
         intrinsics = torch.as_tensor([fx, fy, cx, cy])
@@ -64,8 +65,10 @@ if __name__ == '__main__':
     parser.add_argument("--stride", default=3, type=int, help="frame stride")
 
     parser.add_argument("--weights", default="droid.pth")
+    parser.add_argument("--mvsnet_ckpt", default="None")
     parser.add_argument("--buffer", type=int, default=512)
-    parser.add_argument("--image_size", default=[240, 320])
+    parser.add_argument("--image_size", default=[256, 448])
+    parser.add_argument("--depth_fusion_size", default=[512, 896])
     parser.add_argument("--disable_vis", action="store_true")
 
     parser.add_argument("--beta", type=float, default=0.3, help="weight for translation / rotation components of flow")
@@ -96,7 +99,7 @@ if __name__ == '__main__':
             show_image(image[0])
 
         if droid is None:
-            args.image_size = [image.shape[2], image.shape[3]]
+            # args.image_size = [image.shape[2], image.shape[3]]
             droid = Droid(args)
         
         droid.track(t, image, intrinsics=intrinsics)

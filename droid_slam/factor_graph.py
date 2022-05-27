@@ -166,6 +166,7 @@ class FactorGraph:
 
 
         with self.video.get_lock():
+            self.video.tstamp[ix] = self.video.tstamp[ix+1]
             self.video.images[ix] = self.video.images[ix+1]
             self.video.poses[ix] = self.video.poses[ix+1]
             self.video.disps[ix] = self.video.disps[ix+1]
@@ -287,7 +288,7 @@ class FactorGraph:
             self.video.ba(target, weight, damping, self.ii, self.jj, 1, t, 
                 itrs=itrs, lm=1e-5, ep=1e-2, motion_only=False)
 
-            self.video.dirty[:t] = True
+            # self.video.dirty[:t] = True
 
     def add_neighborhood_factors(self, t0, t1, r=3):
         """ add edges between neighboring frames within radius r """

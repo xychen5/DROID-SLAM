@@ -22,7 +22,7 @@ class Droid:
         self.disable_vis = args.disable_vis
 
         # dense depth prediction
-        self.mvsnet = CDSMVSNet(refine=True, ndepths=(96, 32, 8), depth_interals_ratio=(4, 2, 1))
+        self.mvsnet = CDSMVSNet(refine=True, ndepths=(128, 32, 8), depth_interals_ratio=(4, 4, 1))
         mvsnet_ckpt = torch.load(args.mvsnet_ckpt)
         state_dict = OrderedDict([
             (k.replace("module.", ""), v) for (k, v) in mvsnet_ckpt["state_dict"].items()
@@ -31,7 +31,7 @@ class Droid:
         self.mvsnet.to("cuda:0").eval()
 
         # store images, depth, poses, intrinsics (shared between processes)
-        self.video = DepthVideo(args.image_size, args.buffer, stereo=args.stereo)
+        self.video = DepthVideo(args.image_size, args.buffer, stereo=args.stereo, depth_size=args.depth_fusion_size)
 
         # filter incoming frames so that there is enough motion
         self.filterx = MotionFilter(self.net, self.video, thresh=args.filter_thresh)
@@ -40,7 +40,7 @@ class Droid:
         self.frontend = DroidFrontend(self.net, self.video, self.mvsnet, self.args)
         
         # backend process
-        self.backend = DroidBackend(self.net, self.video, self.args)
+        self.backend = DroidBackend(self.net, self.video, self.mvsnet, self.args)
 
         # visualizer
         if not self.disable_vis:

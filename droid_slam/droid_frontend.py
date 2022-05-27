@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 from lietorch import SE3
 from factor_graph import FactorGraph
-from cdsmvsnet import CDSMVSNet
+from droid_slam.data_readers.mvsnet_dataloader import mvs_loader
 
 
 class DroidFrontend:
@@ -14,6 +14,7 @@ class DroidFrontend:
         self.update_op = net.update
         self.graph = FactorGraph(video, net.update, max_factors=48)
         self.mvsnet = mvsnet
+        self.args = args
 
         # local optimization window
         self.t0 = 0
@@ -69,46 +70,39 @@ class DroidFrontend:
                 self.graph.update(None, None, use_inactive=True)
 
         # refine depths
+        i = 3
         if self.mvsnet is not None:
-            ref_id, src_ids = self.t1 - 3, [self.t1-5, self.t1-4, self.t1-2, self.t1-1]
+            ref_id, src_ids = self.t1 - i, [self.t1-i-2, self.t1-i-1, self.t1-i+1, self.t1-i+2]
             img_ids = [ref_id] + src_ids
-            intrinsics = self.video.intrinsics[img_ids] * 8
             poses = SE3(self.video.poses[img_ids]).matrix()
-
-            intr_matrices = torch.zeros_like(poses)
-            intr_matrices[:, 0, 0], intr_matrices[:, 1, 1] = intrinsics[:, 0], intrinsics[:, 1],
-            intr_matrices[:, :2, 2], intr_matrices[:, 2, 2] = intrinsics[:, 2:], 1.0
-            proj_stage3 = torch.stack((poses, intr_matrices), dim=1)
-            proj_stage2 = proj_stage3.clone()
-            proj_stage2[:, 1, :2] *= 0.5
-            proj_stage1 = proj_stage2.clone()
-            proj_stage1[:, 1, :2] *= 0.5
-            proj_stage0 = proj_stage1.clone()
-            proj_stage0[:, 1, :2] *= 0.5
-            proj_matrices = {"stage1": proj_stage0.unsqueeze(0),
-                             "stage2": proj_stage1.unsqueeze(0),
-                             "stage3": proj_stage2.unsqueeze(0),
-                             "stage4": proj_stage3.unsqueeze(0)}
-
-            ref_depth = 1 / self.video.disps[ref_id]
-            val_depths = ref_depth[(ref_depth > 0.001) & (ref_depth < 1000)]
-            min_d, max_d = val_depths.min(), val_depths.max()
-            d_interval = 0.05 #(max_d - min_d) / 256
-            depth_values = torch.arange(0, 384, dtype=torch.float32, device=min_d.device).unsqueeze(0) * d_interval + min_d
-
-            images = self.video.images[img_ids].unsqueeze(0) / 255.
+            tstamps = self.video.tstamp[img_ids]
+            images, proj_matrices, depth_values = mvs_loader(self.args, tstamps, poses, self.video.disps[ref_id])
             with torch.no_grad():
-                final_depth = self.mvsnet(images, proj_matrices, depth_values.cuda(), temperature=0.01)["refined_depth"]
-            disp_up = 1 / (final_depth.squeeze(0) + 1e-6)
-            self.video.disps_up[ref_id] = disp_up.clamp(min=0.001)
-
+                mvs_outputs = self.mvsnet(images, proj_matrices, depth_values, temperature=0.01)
+                final_depth = mvs_outputs["refined_depth"]
+                mask = torch.ones_like(final_depth) > 0.0
+                for stage, thresh_conf in zip(["stage1", "stage2", "stage3"], [0.1, 0.2, 0.3]):
+                    conf_stage = F.interpolate(mvs_outputs[stage]["photometric_confidence"].unsqueeze(1),
+                                               (mask.size(1), mask.size(2))).squeeze(1)
+                    mask = mask & (conf_stage > thresh_conf)
+                final_depth[~mask] = 1e-6
+            # disp_up = 1 / (final_depth + 1e-6)
+            self.video.disps_up[ref_id] = final_depth.squeeze(0) #disp_up.squeeze(0).clamp(min=0.001)
+            self.video.ref_image[0] = images[0, 0]
+            # self.video.disps[ref_id] = F.interpolate(disp_up.unsqueeze(0), scale_factor=0.125).squeeze(0).squeeze(0)
+            # print(self.t1, tstamps[0])
+            # if self.t1 == 10:
+            #     import matplotlib.pyplot as plt
+            #     plt.imshow(final_depth.squeeze(0).cpu().numpy())
+            #     plt.colorbar()
+            #     plt.show()
         # set pose for next itration
         self.video.poses[self.t1] = self.video.poses[self.t1-1]
         self.video.disps[self.t1] = self.video.disps[self.t1-1].mean()
 
         # update visualization
         # self.video.dirty[self.graph.ii.min():self.t1] = True
-        self.video.dirty[self.graph.ii.min():(self.t1 - 2)] = True
+        self.video.dirty[max(self.graph.ii.min(), self.t1-i-3):(self.t1-i+1)] = True
 
     def __initialize(self):
         """ initialize the SLAM system """
