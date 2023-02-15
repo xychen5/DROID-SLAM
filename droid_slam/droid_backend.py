@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import lietorch
 import numpy as np
+import cv2
 
 from lietorch import SE3
 from factor_graph import FactorGraph
@@ -23,6 +24,7 @@ class DroidBackend:
         self.backend_thresh = args.backend_thresh
         self.backend_radius = args.backend_radius
         self.backend_nms = args.backend_nms
+        print("backend init!")
         
     @torch.no_grad()
     def __call__(self, steps=12):
@@ -63,8 +65,26 @@ class DroidBackend:
                                                    (mask.size(1), mask.size(2))).squeeze(1)
                         mask = mask & (conf_stage > thresh_conf)
                     final_depth[~mask] = 1e-6
-                # disp_up = 1 / (final_depth + 1e-6)
                 self.video.disps_up[ref_id] = final_depth.squeeze(0)
                 self.video.ref_image[0] = images[0, 0]
 
+                import cv2
+                disp_up = 1 / (final_depth + 1e-6)
+                print("frame depth is: ", t1, " >>> ", disp_up)
+                imgNumpy = disp_up.squeeze(0).cpu().numpy()
+                imgNumpy2 = final_depth.squeeze(0).cpu().numpy()
+                cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/enlarge_e6_" + str(t1) + ".jpg", imgNumpy)
+                cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/ori_" + str(t1) + ".jpg", imgNumpy2)
+
                 self.video.dirty[max(0, ref_id - 3):(ref_id+1)] = True
+            
+            import matplotlib.pyplot as plt
+            tmpVisual = 1 / (self.video.disps_up[2] + 1e-6)
+            tmpVisual2 = self.video.disps_up[2]
+            plt.imshow(tmpVisual.squeeze(0).cpu().numpy())
+            plt.colorbar()
+            plt.show()
+            plt.imshow(tmpVisual2.squeeze(0).cpu().numpy())
+            plt.colorbar()
+            plt.show()
+
