@@ -83,7 +83,16 @@ if __name__ == '__main__':
     parser.add_argument("--backend_thresh", type=float, default=22.0)
     parser.add_argument("--backend_radius", type=int, default=2)
     parser.add_argument("--backend_nms", type=int, default=3)
+
+    # for trajectory evaluation and write
+    parser.add_argument("--datapath", type=str, default=None, help="tmu dataset folder which contains a sub folder: rgb")
+    parser.add_argument("--dataset_home", type=str, default=None, help="you own dataset folder which contains a sub folder: rgb")
+
     args = parser.parse_args()
+
+    import os
+    os.system("mkdir " + args.dataset_home)
+    os.system("cd " + args.dataset_home + " && mkdir rgb && mkdir depth")
 
     args.stereo = False
     torch.multiprocessing.set_start_method('spawn')
@@ -105,3 +114,66 @@ if __name__ == '__main__':
         droid.track(t, image, intrinsics=intrinsics, imageName=imageName)
 
     traj_est = droid.terminate(image_stream(args.imagedir, args.calib, args.stride))
+
+    # 生成对应的rbg和depth数据
+    ourOwnDataSetHome = args.dataset_home
+    os.system("cp generateList.py " + ourOwnDataSetHome + 
+        " && cd " + ourOwnDataSetHome + 
+        " && python generateList.py rgb rgb.txt" )
+    os.system("cp generateList.py " + ourOwnDataSetHome + 
+        " && cd " + ourOwnDataSetHome + 
+        " && python generateList.py depth depth.txt" )
+
+    # 复制相机内参文件
+    os.system("cp " + args.datapath + "/calibration.txt " + ourOwnDataSetHome)
+
+    ### run evaluation ###
+
+    print("#"*20 + " Results...")
+
+    import evo
+    from evo.core.trajectory import PoseTrajectory3D
+    from evo.tools import file_interface
+    from evo.core import sync
+    import evo.main_ape as main_ape
+    from evo.core.metrics import PoseRelation
+
+    image_path = os.path.join(args.datapath, 'rgb')
+    images_list = sorted(glob.glob(os.path.join(image_path, '*.png')))[::2]
+    tstamps = [float(x.split('/')[-1][:-4]) for x in images_list]
+
+    def write_tum_trajectory_file(file_path, traj: PoseTrajectory3D,
+                              confirm_overwrite: bool = False) -> None:
+        stamps = traj.timestamps
+        xyz = traj.positions_xyz
+        # shift -1 column -> w in back column
+        np.set_printoptions(suppress=True, precision=5)
+        quat = np.roll(traj.orientations_quat_wxyz, -1, axis=1)
+        mat = np.column_stack((stamps, xyz, quat))
+        np.savetxt(file_path, mat, delimiter=" ", fmt='%.5f')
+        if isinstance(file_path, str):
+            print("Trajectory saved to: " + file_path)
+
+    traj_est = PoseTrajectory3D(
+        positions_xyz=traj_est[:,:3],
+        orientations_quat_wxyz=traj_est[:,3:],
+        timestamps=np.array(tstamps))
+
+    gt_file = os.path.join(args.datapath, 'groundtruth.txt')
+    traj_ref = file_interface.read_tum_trajectory_file(gt_file)
+
+    traj_ref, traj_est = sync.associate_trajectories(traj_ref, traj_est)
+    result = main_ape.ape(traj_ref, traj_est, est_name='traj', 
+        pose_relation=PoseRelation.translation_part, align=True, correct_scale=True)
+
+    print(result)
+
+    # 写入slam以及和groundtruth的误差结果
+    write_tum_trajectory_file(ourOwnDataSetHome + "/slamCam.txt", traj_est)
+
+    slamEvalRes = args.dataset_home + "/slamEvalRes.txt"
+    file = open(slamEvalRes, "w")
+    file.write(str(result))
+    file.close()
+
+    print("all finished")

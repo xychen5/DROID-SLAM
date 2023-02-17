@@ -89,7 +89,6 @@ class DroidFrontend:
             self.video.disps_up[ref_id] = final_depth.squeeze(0) #disp_up.squeeze(0).clamp(min=0.001)
             self.video.ref_image[0] = images[0, 0]
 
-            print("frame : ", self.t1, " writing: ", "/home/nash5/prjs/DROID-SLAM/data/depth/" + imageName )
             imgNumpy2 = final_depth.squeeze(0).cpu().numpy()
             # cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/front_" + str(self.t1) + ".jpg", imgNumpy2)
             import cv2
@@ -97,13 +96,17 @@ class DroidFrontend:
             # cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/front_" + str(self.t1) + ".jpg",
             #     (imgNumpy2 * 256.0).astype(np.uint16),
             #     [cv2.IMWRITE_PNG_COMPRESSION, 3])
-            ourOwnDataSetHome = "/home/nash5/prjs/DROID-SLAM/data/test"
             depthScale = 5000
-            os.system("cp ~/prjs/dataSets/rgbd_dataset_freiburg1_xyz/rgb/" + imageName + " " + ourOwnDataSetHome + "/rgb")
+            ourOwnDataSetHome = self.args.dataset_home
             print("image is: ", imgNumpy2.shape, " content: ", (imgNumpy2 * 256.0).astype(np.uint16))
+            print("frame : ", self.t1, " writing: ", ourOwnDataSetHome + "/depth/" + imageName)
+            # 复制原始图片和写入深度图
             cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName,
                 (imgNumpy2 * depthScale).astype(np.uint16),
                 [cv2.IMWRITE_PNG_COMPRESSION, 3])
+            # os.system("cp ~/prjs/dataSets/rgbd_dataset_freiburg1_xyz/rgb/" + imageName + " " + ourOwnDataSetHome + "/rgb")
+            os.system("cp " + self.args.imagedir + "/" + imageName + " " + ourOwnDataSetHome + "/rgb")
+
             # disp_up = 1 / (final_depth + 1e-6)
             # self.video.disps[ref_id] = F.interpolate(disp_up.unsqueeze(0), scale_factor=0.125).squeeze(0).squeeze(0)
             # print(self.t1, tstamps[0])
@@ -119,6 +122,7 @@ class DroidFrontend:
         # update visualization
         # self.video.dirty[self.graph.ii.min():self.t1] = True
         self.video.dirty[max(self.graph.ii.min(), self.t1-i-3):(self.t1-i+1)] = True
+
 
     def __initialize(self):
         """ initialize the SLAM system """
