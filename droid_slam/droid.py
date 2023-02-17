@@ -68,7 +68,7 @@ class Droid:
         self.net.load_state_dict(state_dict)
         self.net.to("cuda:0").eval()
 
-    def track(self, tstamp, image, depth=None, intrinsics=None):
+    def track(self, tstamp, image, depth=None, intrinsics=None, imageName=None):
         """ main thread - update map """
 
         with torch.no_grad():
@@ -76,7 +76,7 @@ class Droid:
             self.filterx.track(tstamp, image, depth, intrinsics)
 
             # local bundle adjustment
-            self.frontend()
+            self.frontend(imageName)
 
             # global bundle adjustment
             # self.backend()

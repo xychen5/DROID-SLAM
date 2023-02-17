@@ -69,22 +69,26 @@ class DroidBackend:
                 self.video.ref_image[0] = images[0, 0]
 
                 import cv2
-                disp_up = 1 / (final_depth + 1e-6)
-                print("frame depth is: ", t1, " >>> ", disp_up)
-                imgNumpy = disp_up.squeeze(0).cpu().numpy()
+                large_depth = 1 / (final_depth + 1e-6)
+                print("frame depth is: ", t1, " size: ", large_depth.size()," >>> ", large_depth)
+                imgNumpy = large_depth.squeeze(0).cpu().numpy()
                 imgNumpy2 = final_depth.squeeze(0).cpu().numpy()
-                cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/enlarge_e6_" + str(t1) + ".jpg", imgNumpy)
-                cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/ori_" + str(t1) + ".jpg", imgNumpy2)
+                # cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/enlarge_e6_" + str(t1) + ".jpg", imgNumpy)
+                # cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/ori_" + str(t1) + ".jpg", imgNumpy2)
+                import cv2
+                cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/back_" + str(t1) + ".jpg",
+                    (imgNumpy2 * 256.0).astype(np.uint16),
+                    [cv2.IMWRITE_PNG_COMPRESSION, 3])
 
                 self.video.dirty[max(0, ref_id - 3):(ref_id+1)] = True
             
-            import matplotlib.pyplot as plt
-            tmpVisual = 1 / (self.video.disps_up[2] + 1e-6)
-            tmpVisual2 = self.video.disps_up[2]
-            plt.imshow(tmpVisual.squeeze(0).cpu().numpy())
-            plt.colorbar()
-            plt.show()
-            plt.imshow(tmpVisual2.squeeze(0).cpu().numpy())
-            plt.colorbar()
-            plt.show()
+            # import matplotlib.pyplot as plt
+            # tmpVisual = 1 / (self.video.disps_up[2] + 1e-6)
+            # tmpVisual2 = self.video.disps_up[2]
+            # plt.imshow(tmpVisual.squeeze(0).cpu().numpy())
+            # plt.colorbar()
+            # plt.show()
+            # plt.imshow(tmpVisual2.squeeze(0).cpu().numpy())
+            # plt.colorbar()
+            # plt.show()
 

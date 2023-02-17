@@ -2,11 +2,11 @@ import torch
 import lietorch
 import numpy as np
 import torch.nn.functional as F
+import os
 
 from lietorch import SE3
 from factor_graph import FactorGraph
 from droid_slam.data_readers.mvsnet_dataloader import mvs_loader
-
 
 class DroidFrontend:
     def __init__(self, net, video, mvsnet, args):
@@ -36,7 +36,7 @@ class DroidFrontend:
         self.frontend_thresh = args.frontend_thresh
         self.frontend_radius = args.frontend_radius
 
-    def __update(self):
+    def __update(self, imageName=None):
         """ add edges, perform update """
 
         self.count += 1
@@ -86,9 +86,25 @@ class DroidFrontend:
                                                (mask.size(1), mask.size(2))).squeeze(1)
                     mask = mask & (conf_stage > thresh_conf)
                 final_depth[~mask] = 1e-6
-            # disp_up = 1 / (final_depth + 1e-6)
             self.video.disps_up[ref_id] = final_depth.squeeze(0) #disp_up.squeeze(0).clamp(min=0.001)
             self.video.ref_image[0] = images[0, 0]
+
+            print("frame : ", self.t1, " writing: ", "/home/nash5/prjs/DROID-SLAM/data/depth/" + imageName )
+            imgNumpy2 = final_depth.squeeze(0).cpu().numpy()
+            # cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/front_" + str(self.t1) + ".jpg", imgNumpy2)
+            import cv2
+            # jpg换成png就会变成全黑，猜测原因为jpg和png的默认位数占用不同导致的区别，所以深度scale就很重要，tmu数据集默认的深度格式是255
+            # cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/front_" + str(self.t1) + ".jpg",
+            #     (imgNumpy2 * 256.0).astype(np.uint16),
+            #     [cv2.IMWRITE_PNG_COMPRESSION, 3])
+            ourOwnDataSetHome = "/home/nash5/prjs/DROID-SLAM/data/test"
+            depthScale = 5000
+            os.system("cp ~/prjs/dataSets/rgbd_dataset_freiburg1_xyz/rgb/" + imageName + " " + ourOwnDataSetHome + "/rgb")
+            print("image is: ", imgNumpy2.shape, " content: ", (imgNumpy2 * 256.0).astype(np.uint16))
+            cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName,
+                (imgNumpy2 * depthScale).astype(np.uint16),
+                [cv2.IMWRITE_PNG_COMPRESSION, 3])
+            # disp_up = 1 / (final_depth + 1e-6)
             # self.video.disps[ref_id] = F.interpolate(disp_up.unsqueeze(0), scale_factor=0.125).squeeze(0).squeeze(0)
             # print(self.t1, tstamps[0])
             # if self.t1 == 10:
@@ -137,7 +153,7 @@ class DroidFrontend:
 
         self.graph.rm_factors(self.graph.ii < self.warmup-4, store=True)
 
-    def __call__(self):
+    def __call__(self, imageName=None):
         """ main update """
         # do initialization
         if not self.is_initialized and self.video.counter.value == self.warmup:
@@ -145,6 +161,6 @@ class DroidFrontend:
             
         # do update
         elif self.is_initialized and self.t1 < self.video.counter.value:
-            self.__update()
+            self.__update(imageName)
 
         
