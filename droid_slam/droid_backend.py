@@ -79,17 +79,17 @@ class DroidBackend:
                 # cv2.imwrite("/home/nash5/prjs/DROID-SLAM/data/back_" + str(t1) + ".jpg",
                 #     (imgNumpy2 * 256.0).astype(np.uint16),
                 #     [cv2.IMWRITE_PNG_COMPRESSION, 3])
-                depthScale = 5000
-                ourOwnDataSetHome = self.args.dataset_home
-                print("image is: ", imgNumpy2.shape, " content: ", (imgNumpy2 * 256.0).astype(np.uint16))
-                print("frame : ", self.t1, " writing: ", ourOwnDataSetHome + "/depth/" + imageName)
-                # 复制原始图片和写入深度图
-                cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName,
-                    (imgNumpy2 * depthScale).astype(np.uint16),
-                    [cv2.IMWRITE_PNG_COMPRESSION, 3])
-                image = cv2.imread(ourOwnDataSetHome + "/depth/" + imageName)
-                image = cv2.resize(image, (640, 480))
-                cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName, image)
+                # depthScale = 5000
+                # ourOwnDataSetHome = self.args.dataset_home
+                # print("image is: ", imgNumpy2.shape, " content: ", (imgNumpy2 * 256.0).astype(np.uint16))
+                # print("frame : ", self.t1, " writing: ", ourOwnDataSetHome + "/depth/" + imageName)
+                # # 复制原始图片和写入深度图
+                # cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName,
+                #     (imgNumpy2 * depthScale).astype(np.uint16),
+                #     [cv2.IMWRITE_PNG_COMPRESSION, 3])
+                # image = cv2.imread(ourOwnDataSetHome + "/depth/" + imageName)
+                # image = cv2.resize(image, (640, 480))
+                # cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName, image)
 
                 self.video.dirty[max(0, ref_id - 3):(ref_id+1)] = True
             
