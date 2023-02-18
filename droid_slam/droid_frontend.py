@@ -73,6 +73,7 @@ class DroidFrontend:
         i = 3
         if self.mvsnet is not None:
             ref_id, src_ids = self.t1 - i, [self.t1-i-2, self.t1-i-1, self.t1-i+1, self.t1-i+2]
+            # t的前5帧作为推理的图像
             img_ids = [ref_id] + src_ids
             poses = SE3(self.video.poses[img_ids]).matrix()
             tstamps = self.video.tstamp[img_ids]
@@ -100,12 +101,16 @@ class DroidFrontend:
             ourOwnDataSetHome = self.args.dataset_home
             print("image is: ", imgNumpy2.shape, " content: ", (imgNumpy2 * 256.0).astype(np.uint16))
             print("frame : ", self.t1, " writing: ", ourOwnDataSetHome + "/depth/" + imageName)
-            # 复制原始图片和写入深度图
+            # 写入原始图片和写入深度图
             cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName,
                 (imgNumpy2 * depthScale).astype(np.uint16),
                 [cv2.IMWRITE_PNG_COMPRESSION, 3])
+            image = cv2.imread(ourOwnDataSetHome + "/depth/" + imageName)
+            image = cv2.resize(image, (640, 480))
+            cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName, image)
             # os.system("cp ~/prjs/dataSets/rgbd_dataset_freiburg1_xyz/rgb/" + imageName + " " + ourOwnDataSetHome + "/rgb")
-            os.system("cp " + self.args.imagedir + "/" + imageName + " " + ourOwnDataSetHome + "/rgb")
+            # todo: 当前的深度图，谁是它对应的原始图片？
+            cv2.imwrite(ourOwnDataSetHome + "/rgb/" + imageName, self.video.images[ref_id].cpu().numpy())
 
             # disp_up = 1 / (final_depth + 1e-6)
             # self.video.disps[ref_id] = F.interpolate(disp_up.unsqueeze(0), scale_factor=0.125).squeeze(0).squeeze(0)

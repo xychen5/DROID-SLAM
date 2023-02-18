@@ -147,10 +147,10 @@ if __name__ == '__main__':
         stamps = traj.timestamps
         xyz = traj.positions_xyz
         # shift -1 column -> w in back column
-        np.set_printoptions(suppress=True, precision=5)
+        np.set_printoptions(suppress=True, precision=6)
         quat = np.roll(traj.orientations_quat_wxyz, -1, axis=1)
         mat = np.column_stack((stamps, xyz, quat))
-        np.savetxt(file_path, mat, delimiter=" ", fmt='%.5f')
+        np.savetxt(file_path, mat, delimiter=" ", fmt='%.6f')
         if isinstance(file_path, str):
             print("Trajectory saved to: " + file_path)
 

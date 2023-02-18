@@ -4,6 +4,7 @@ import sys
 def ListFilesToTxt(dir, file, wildcard, recursion):
     exts = wildcard.split(" ")
     files = os.listdir(dir)
+    lines = []
     for name in files:
         fullname = os.path.join(dir, name)
         if(os.path.isdir(fullname) & recursion):
@@ -11,8 +12,13 @@ def ListFilesToTxt(dir, file, wildcard, recursion):
         else:
             for ext in exts:
                 if(name.endswith(ext)):
-                    file.write(name[:-4] + " " + fullname + "\n")
+                    # file.write(name[:-4] + " " + fullname + "\n")
+                    # 时间戳 文件名
+                    lines.append(name[:-4] + " " + fullname + "\n")
                     break
+    # 按照时间戳排序
+    lines.sort()
+    file.writelines(lines)
 
 tarDir = sys.argv[1]
 outputPath = sys.argv[2]
