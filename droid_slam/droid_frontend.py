@@ -36,11 +36,17 @@ class DroidFrontend:
         self.frontend_thresh = args.frontend_thresh
         self.frontend_radius = args.frontend_radius
 
+        # 深度图序号要晚4次
+        self.names = ["t1", "t2", "t3", "t4", "t5.png", "t6.png", "t7.png", "t8.png"]
+        self.delay_times = 4
+
     def __update(self, imageName=None):
         """ add edges, perform update """
 
         self.count += 1
         self.t1 += 1
+        self.names.append(imageName)
+        print("now tracking: ", self.t1, " >>> ", self.names)
 
         if self.graph.corr is not None:
             self.graph.rm_factors(self.graph.age > self.max_age, store=True)
@@ -73,7 +79,7 @@ class DroidFrontend:
         i = 3
         if self.mvsnet is not None:
             ref_id, src_ids = self.t1 - i, [self.t1-i-2, self.t1-i-1, self.t1-i+1, self.t1-i+2]
-            # t的前5帧作为推理的图像
+            # t的前5帧作为推理的图像，且推理的图片为当前t1图片的前面第3个，然当前track的图像为，t1+1，所以需要t1-4的图像
             img_ids = [ref_id] + src_ids
             poses = SE3(self.video.poses[img_ids]).matrix()
             tstamps = self.video.tstamp[img_ids]
@@ -100,17 +106,17 @@ class DroidFrontend:
             depthScale = 5000
             ourOwnDataSetHome = self.args.dataset_home
             print("image is: ", imgNumpy2.shape, " content: ", (imgNumpy2 * 256.0).astype(np.uint16))
-            print("frame : ", self.t1, " writing: ", ourOwnDataSetHome + "/depth/" + imageName)
+            print("frame : ", self.t1, " writing: ", ourOwnDataSetHome + "/depth/" + self.names[-5])
+                
             # 写入原始图片和写入深度图
-            cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName,
+            # 深度图是当前复制的这一张rgb的前面第4张的rgb的深度图
+            cv2.imwrite(ourOwnDataSetHome + "/depth/" + self.names[-5],
                 (imgNumpy2 * depthScale).astype(np.uint16),
                 [cv2.IMWRITE_PNG_COMPRESSION, 3])
-            image = cv2.imread(ourOwnDataSetHome + "/depth/" + imageName)
+            image = cv2.imread(ourOwnDataSetHome + "/depth/" + self.names[-5])
             image = cv2.resize(image, (640, 480))
-            cv2.imwrite(ourOwnDataSetHome + "/depth/" + imageName, image)
-            # os.system("cp ~/prjs/dataSets/rgbd_dataset_freiburg1_xyz/rgb/" + imageName + " " + ourOwnDataSetHome + "/rgb")
-            # todo: 当前的深度图，谁是它对应的原始图片？
-            cv2.imwrite(ourOwnDataSetHome + "/rgb/" + imageName, self.video.images[ref_id].cpu().numpy())
+            cv2.imwrite(ourOwnDataSetHome + "/depth/" + self.names[-5], image)
+            os.system("cp ~/prjs/dataSets/rgbd_dataset_freiburg1_xyz/rgb/" + imageName + " " + ourOwnDataSetHome + "/rgb")
 
             # disp_up = 1 / (final_depth + 1e-6)
             # self.video.disps[ref_id] = F.interpolate(disp_up.unsqueeze(0), scale_factor=0.125).squeeze(0).squeeze(0)

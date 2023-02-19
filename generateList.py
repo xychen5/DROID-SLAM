@@ -18,7 +18,9 @@ def ListFilesToTxt(dir, file, wildcard, recursion):
                     break
     # 按照时间戳排序
     lines.sort()
-    file.writelines(lines)
+
+    # 去掉最开始没有与之对应的以t开头的几个深度图
+    file.writelines(lines[:-4])
 
 tarDir = sys.argv[1]
 outputPath = sys.argv[2]
